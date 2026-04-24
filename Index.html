@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gauge 0–100 (editável e interativo)</title>
+  <style>
+    :root{
+      --size: 320px;
+      --track: #e8edf3;
+      --good: #21c55d;
+      --mid:  #f59e0b;
+      --bad:  #ef4444;
+      --text: #0f172a;
+    }
+
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 24px;
+      color: var(--text);
+      display: grid;
+      place-items: start center;
+      gap: 16px;
+    }
+
+    .card{
+      width: min(720px, 100%);
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 6px 24px rgba(15,23,42,0.06);
+    }
+
+    .wrap{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      align-items: start;
+      justify-items: center;
+    }
+
+    .gauge{
+      width: var(--size);
+      height: calc(var(--size) / 2 + 24px);
+      position: relative;
+      user-select: none;
+      touch-action: none;
+    }
+
+    svg{ overflow: visible; }
+
+    .value{
+      position: absolute;
+      left: 50%;
+      top: 60%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      line-height: 1.1;
+    }
+
+    .value .num{
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .value .label{
+      font-size: 13px;
+      opacity: 0.75;
+    }
+
+    .controls{
+      width: min(560px, 100%);
+      display: grid;
+      gap: 10px;
+    }
+
+    .row{
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    input[type="range"]{
+      width: 100%;
+    }
+
+    .buttons{
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    button{
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .edit{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .field{
+      display: grid;
+      gap: 6px;
+    }
+    .field label{
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    .field input{
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      width: 100%;
+    }
+
+    .hint{
+      font-size: 12px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="wrap">
+      <div class="gauge" id="gauge">
+        <svg id="svg" width="320" height="180" viewBox="0 0 320 180" aria-label="Gauge 0 a 100">
+          <path id="track" d="" fill="none" stroke="var(--track)" stroke-width="22" stroke-linecap="round"></path>
+          <path id="bandBad" d="" fill="none" stroke="var(--bad)" stroke-width="22" stroke-linecap="round" opacity="0.9"></path>
+          <path id="bandMid" d="" fill="none" stroke="var(--mid)" stroke-width="22" stroke-linecap="round" opacity="0.9"></path>
+          <path id="bandGood" d="" fill="none" stroke="var(--good)" stroke-width="22" stroke-linecap="round" opacity="0.9"></path>
+          <path id="progress" d="" fill="none" stroke="var(--good)" stroke-width="22" stroke-linecap="round"></path>
+          <g id="needle" transform="">
+            <line x1="160" y1="156" x2="160" y2="54" stroke="#111827" stroke-width="4" stroke-linecap="round"></line>
+            <circle cx="160" cy="156" r="10" fill="#111827"></circle>
+          </g>
+          <text x="24" y="170" font-size="12" fill="#64748b">0</text>
+          <text x="290" y="170" font-size="12" fill="#64748b">100</text>
+        </svg>
+
+        <div class="value" aria-live="polite">
+          <div class="num" id="valueNum">50</div>
+          <div class="label" id="valueLabel">Arraste o ponteiro ou edite abaixo</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <input id="range" type="range" min="0" max="100" step="1" value="50" />
+          <div class="buttons">
+            <button id="minus" type="button">-</button>
+            <button id="plus" type="button">+</button>
+          </div>
+        </div>
+
+        <div class="edit">
+          <div class="field">
+            <label for="number">Valor (0–100)</label>
+            <input id="number" type="number" min="0" max="100" step="1" value="50" />
+          </div>
+          <div class="field">
+            <label for="step">Passo do controle</label>
+            <input id="step" type="number" min="1" max="25" step="1" value="1" />
+          </div>
+        </div>
+
+        <div class="hint">
+          Dica: clique e arraste no semicírculo para alterar. As cores mudam por faixa (0–33 / 34–66 / 67–100).
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function polarToCartesian(cx, cy, r, angleDeg){
+    const a = (angleDeg - 90) * Math.PI / 180.0;
+    return { x: cx + (r * Math.cos(a)), y: cy + (r * Math.sin(a)) };
+  }
+
+  function describeArc(cx, cy, r, startAngle, endAngle){
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end   = polarToCartesian(cx, cy, r, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
+  }
+
+  const cfg = {
+    min: 0,
+    max: 100,
+    startAngle: -90,
+    endAngle: 90,
+    cx: 160,
+    cy: 156,
+    r: 120
+  };
+
+  const els = {
+    gauge: document.getElementById("gauge"),
+    svg: document.getElementById("svg"),
+    track: document.getElementById("track"),
+    bandBad: document.getElementById("bandBad"),
+    bandMid: document.getElementById("bandMid"),
+    bandGood: document.getElementById("bandGood"),
+    progress: document.getElementById("progress"),
+    needle: document.getElementById("needle"),
+    valueNum: document.getElementById("valueNum"),
+    range: document.getElementById("range"),
+    number: document.getElementById("number"),
+    step: document.getElementById("step"),
+    minus: document.getElementById("minus"),
+    plus: document.getElementById("plus"),
+  };
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  function valueToAngle(v){
+    const t = (v - cfg.min) / (cfg.max - cfg.min);
+    return cfg.startAngle + t * (cfg.endAngle - cfg.startAngle);
+  }
+
+  function angleToValue(angle){
+    const t = (angle - cfg.startAngle) / (cfg.endAngle - cfg.startAngle);
+    return cfg.min + t * (cfg.max - cfg.min);
+  }
+
+  function getCssVar(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function colorForValue(v){
+    if (v <= 33) return getCssVar("--bad");
+    if (v <= 66) return getCssVar("--mid");
+    return getCssVar("--good");
+  }
+
+  function setBands(){
+    const a0 = valueToAngle(0);
+    const a33 = valueToAngle(33);
+    const a66 = valueToAngle(66);
+    const a100 = valueToAngle(100);
+
+    els.track.setAttribute("d", describeArc(cfg.cx, cfg.cy, cfg.r, cfg.startAngle, cfg.endAngle));
+    els.bandBad.setAttribute("d", describeArc(cfg.cx, cfg.cy, cfg.r, a0, a33));
+    els.bandMid.setAttribute("d", describeArc(cfg.cx, cfg.cy, cfg.r, a33, a66));
+    els.bandGood.setAttribute("d", describeArc(cfg.cx, cfg.cy, cfg.r, a66, a100));
+  }
+
+  function render(v){
+    v = Math.round(clamp(v, cfg.min, cfg.max));
+
+    els.valueNum.textContent = String(v);
+    els.range.value = String(v);
+    els.number.value = String(v);
+
+    const angle = valueToAngle(v);
+    els.progress.setAttribute("d", describeArc(cfg.cx, cfg.cy, cfg.r, cfg.startAngle, angle));
+    els.progress.setAttribute("stroke", colorForValue(v));
+    els.needle.setAttribute("transform", `rotate(${angle} ${cfg.cx} ${cfg.cy})`);
+  }
+
+  let dragging = false;
+
+  function clientToAngle(clientX, clientY){
+    const rect = els.svg.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    const dx = x - cfg.cx;
+    const dy = y - cfg.cy;
+
+    let deg = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+    if (deg > 180) deg -= 360;
+    deg = clamp(deg, cfg.startAngle, cfg.endAngle);
+    return deg;
+  }
+
+  function setFromPointer(clientX, clientY){
+    const angle = clientToAngle(clientX, clientY);
+    const v = angleToValue(angle);
+    render(v);
+  }
+
+  els.gauge.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    els.gauge.setPointerCapture(e.pointerId);
+    setFromPointer(e.clientX, e.clientY);
+  });
+
+  els.gauge.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    setFromPointer(e.clientX, e.clientY);
+  });
+
+  els.gauge.addEventListener("pointerup", () => dragging = false);
+  els.gauge.addEventListener("pointercancel", () => dragging = false);
+
+  function setStep(){
+    const s = clamp(Number(els.step.value || 1), 1, 25);
+    els.range.step = String(s);
+    els.number.step = String(s);
+  }
+
+  els.range.addEventListener("input", () => render(Number(els.range.value)));
+  els.number.addEventListener("input", () => render(Number(els.number.value)));
+  els.step.addEventListener("input", () => setStep());
+
+  els.minus.addEventListener("click", () => {
+    const s = Number(els.range.step || 1);
+    render(Number(els.range.value) - s);
+  });
+
+  els.plus.addEventListener("click", () => {
+    const s = Number(els.range.step || 1);
+    render(Number(els.range.value) + s);
+  });
+
+  setBands();
+  setStep();
+  render(50);
+</script>
+</body>
+  </html>
